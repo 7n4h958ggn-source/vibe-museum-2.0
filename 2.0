@@ -10,18 +10,18 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Vibe馆">
     
-    <!-- Tailwind CSS for modern rapid styling -->
+    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Google Fonts: Inter and Playfair Display for premium museum look matching image_f066e0.jpg -->
+    <!-- Google Fonts: Inter and Playfair Display for premium museum aesthetic -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400&display=swap" rel="stylesheet">
     
-    <!-- React and Babel CDNs for robust component structure in single file -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- React, ReactDOM and Babel CDNs - Switched to jsDelivr for 100% uptime and blazing fast speed in mainland China -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.12/babel.min.js" crossorigin></script>
 
     <style>
         body {
@@ -47,7 +47,7 @@
         .pt-safe {
             padding-top: calc(env(safe-area-inset-top) + 1rem);
         }
-        /* Custom grayscaling for SOLD OUT items to match high-end photo treatments in image_f066e0.jpg */
+        /* Custom grayscaling for SOLD OUT items to match high-end photo treatments */
         .sold-out-grayscale {
             filter: grayscale(100%) contrast(90%) brightness(95%);
             opacity: 0.65;
@@ -78,7 +78,16 @@
 </head>
 <body class="text-[#20252c] overflow-x-hidden">
 
-    <div id="app"></div>
+    <!-- This div will be replaced automatically when React mounts successfully -->
+    <div id="app" class="min-h-screen flex items-center justify-center bg-[#f6f6f3]">
+        <div class="text-center space-y-4 p-6">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#20252c] mx-auto"></div>
+            <p class="text-xs text-neutral-400 font-mono tracking-wider uppercase">Loading Vibe Museum...</p>
+            <p class="text-[10px] text-neutral-400 max-w-xs mx-auto leading-relaxed">
+                正在通过高速镜像网络载入 Vibe 馆藏系统。如果长时间停留在该界面，请尝试切换网络或清除浏览器缓存。
+            </p>
+        </div>
+    </div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
@@ -150,9 +159,21 @@
         const safeGetLocalStorage = (key, defaultValue) => {
             try {
                 const stored = localStorage.getItem(key);
-                return stored ? JSON.parse(stored) : defaultValue;
+                if (!stored) return defaultValue;
+                const parsed = JSON.parse(stored);
+                
+                // Absolute structural validation to quarantine corrupt legacy cache
+                if (key === "vibe_museum_items" && !Array.isArray(parsed)) {
+                    console.warn("Corrupt items array detected in localStorage. Sanitizing...");
+                    return defaultValue;
+                }
+                if (key === "vibe_custom_ips" && !Array.isArray(parsed)) {
+                    console.warn("Corrupt IPs array detected in localStorage. Sanitizing...");
+                    return defaultValue;
+                }
+                return parsed !== null ? parsed : defaultValue;
             } catch (e) {
-                console.error("LocalStorage read blocked:", e);
+                console.error("LocalStorage read blocked or failed:", e);
                 return defaultValue;
             }
         };
@@ -212,9 +233,6 @@
             }
         ];
 
-        // Beautiful SVG DataUrl when images fail or are empty
-        const FALLBACK_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100%25' height='100%25' fill='%23f2f1ec'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='serif' font-size='10' fill='%237c7c72'>Vibe Museum</text></svg>";
-
         class ErrorBoundary extends React.Component {
             constructor(props) {
                 super(props);
@@ -236,7 +254,7 @@
                         <div className="p-6 max-w-md mx-auto my-12 bg-white rounded-3xl border border-rose-200 shadow-2xl space-y-4 text-left">
                             <div className="text-rose-600 font-bold text-lg flex items-center gap-2">
                                 <span className="text-xl">⚠️</span>
-                                <span className="serif-font">系统加载发生意外</span>
+                                <span className="serif-font">系统运行发生意外</span>
                             </div>
                             <p className="text-xs text-[#20252c] font-medium leading-relaxed">
                                 抱歉！由于您之前在浏览器中缓存了不兼容的历史馆藏数据，应用未能成功渲染。我们已经帮您拦截了白屏崩溃。请通过点击下方按钮清空这些旧数据：
@@ -268,6 +286,9 @@
 
         function PriceTrendChart({ history, purchasePrice, currentPrice }) {
             const parsedHistory = Array.isArray(history) ? history : [];
+            const safePurchasePrice = Number(purchasePrice) || 0;
+            const safeCurrentPrice = Number(currentPrice) || 0;
+
             if (parsedHistory.length < 2) {
                 return (
                     <div className="bg-[#fcfcf9] text-xs text-neutral-400 p-4 rounded-2xl border border-[#e5e5e0] text-center">
@@ -276,15 +297,15 @@
                 );
             }
 
-            // Clean data points
+            // Clean data points defensively to prevent dividing by zero or NaN coordinate failures
             const parsedData = parsedHistory.map(h => ({
                 date: h?.date || "",
                 price: parseFloat(h?.price) || 0,
                 source: h?.source || ""
             })).sort((a, b) => new Date(a.date) - new Date(b.date));
 
-            const minPrice = Math.min(...parsedData.map(d => d.price), purchasePrice) * 0.9;
-            const maxPrice = Math.max(...parsedData.map(d => d.price), purchasePrice) * 1.1;
+            const minPrice = Math.min(...parsedData.map(d => d.price), safePurchasePrice) * 0.9;
+            const maxPrice = Math.max(...parsedData.map(d => d.price), safePurchasePrice) * 1.1;
             const priceRange = maxPrice - minPrice || 1;
 
             const width = 500;
@@ -366,7 +387,8 @@
 
         function App() {
             const [items, setItems] = useState(() => {
-                return safeGetLocalStorage("vibe_museum_items", INITIAL_MOCK_ITEMS);
+                const stored = safeGetLocalStorage("vibe_museum_items", INITIAL_MOCK_ITEMS);
+                return Array.isArray(stored) ? stored : INITIAL_MOCK_ITEMS;
             });
             const [selectedIP, setSelectedIP] = useState("全部");
             const [selectedCharacter, setSelectedCharacter] = useState("全部");
@@ -387,7 +409,8 @@
 
             // Custom Brand IPs
             const [customIPs, setCustomIPs] = useState(() => {
-                return safeGetLocalStorage("vibe_custom_ips", ["全部", "泡泡玛特", "宝可梦", "积木熊", "任天堂", "高达", "其他"]);
+                const stored = safeGetLocalStorage("vibe_custom_ips", ["全部", "泡泡玛特", "宝可梦", "积木熊", "任天堂", "高达", "其他"]);
+                return Array.isArray(stored) ? stored : ["全部", "泡泡玛特", "宝可梦", "积木熊", "任天堂", "高达", "其他"];
             });
 
             // Form states
@@ -440,55 +463,48 @@
             const compressPhoto = (file) => {
                 return new Promise((resolve) => {
                     try {
-                        const blobUrl = URL.createObjectURL(file);
-                        const img = new Image();
-                        img.onload = () => {
-                            try {
-                                const canvas = document.createElement("canvas");
-                                const MAX_WIDTH = 800;
-                                const MAX_HEIGHT = 800;
-                                let width = img.width;
-                                let height = img.height;
-
-                                if (width > height) {
-                                    if (width > MAX_WIDTH) {
-                                        height *= MAX_WIDTH / width;
-                                        width = MAX_WIDTH;
-                                    }
-                                } else {
-                                    if (height > MAX_HEIGHT) {
-                                        width *= MAX_HEIGHT / height;
-                                        height = MAX_HEIGHT;
-                                    }
-                                }
-
-                                canvas.width = width;
-                                canvas.height = height;
-                                const ctx = canvas.getContext("2d");
-                                ctx.drawImage(img, 0, 0, width, height);
-                                
-                                const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
-                                URL.revokeObjectURL(blobUrl); // Revoke immediately to save massive RAM in browser
-                                resolve(compressedBase64);
-                            } catch (e) {
-                                // Fallback 1: FileReader raw load
-                                const reader = new FileReader();
-                                reader.onload = (re) => resolve(re.target.result);
-                                reader.readAsDataURL(file);
-                            }
-                        };
-                        img.onerror = () => {
-                            // Fallback 2: FileReader raw load
-                            const reader = new FileReader();
-                            reader.onload = (re) => resolve(re.target.result);
-                            reader.readAsDataURL(file);
-                        };
-                        img.src = blobUrl;
-                    } catch (err) {
-                        // Fallback 3: Standard FileReader direct load
                         const reader = new FileReader();
-                        reader.onload = (re) => resolve(re.target.result);
+                        reader.onload = (event) => {
+                            const img = new Image();
+                            img.onload = () => {
+                                try {
+                                    const canvas = document.createElement("canvas");
+                                    const MAX_WIDTH = 800;
+                                    const MAX_HEIGHT = 800;
+                                    let width = img.width;
+                                    let height = img.height;
+
+                                    if (width > height) {
+                                        if (width > MAX_WIDTH) {
+                                            height *= MAX_WIDTH / width;
+                                            width = MAX_WIDTH;
+                                        }
+                                    } else {
+                                        if (height > MAX_HEIGHT) {
+                                            width *= MAX_HEIGHT / height;
+                                            height = MAX_HEIGHT;
+                                        }
+                                    }
+
+                                    canvas.width = width;
+                                    canvas.height = height;
+                                    const ctx = canvas.getContext("2d");
+                                    ctx.drawImage(img, 0, 0, width, height);
+                                    
+                                    const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
+                                    resolve(compressedBase64);
+                                } catch (e) {
+                                    // Fallback to raw load if canvas throws a security error
+                                    resolve(event.target.result);
+                                }
+                            };
+                            img.onerror = () => resolve(event.target.result);
+                            img.src = event.target.result;
+                        };
+                        reader.onerror = () => resolve("");
                         reader.readAsDataURL(file);
+                    } catch (err) {
+                        resolve("");
                     }
                 });
             };
@@ -544,7 +560,7 @@
                         }
                     };
 
-                    const apiKey = deepSeekKey || ""; // Fallbacks securely to state
+                    const apiKey = deepSeekKey || ""; // Fallbacks securely to user setting
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
                     const response = await fetch(apiUrl, {
@@ -591,19 +607,11 @@
                 safeSetLocalStorage("vibe_deepseek_key", val);
             };
 
-            useEffect(() => {
-                safeSetLocalStorage("vibe_museum_items", items);
-            }, [items]);
-
-            useEffect(() => {
-                safeSetLocalStorage("vibe_custom_ips", customIPs);
-            }, [customIPs]);
-
             const currentItem = useMemo(() => {
-                return items.find(i => i.id === selectedItemId) || null;
+                const safeItems = Array.isArray(items) ? items : [];
+                return safeItems.find(i => i && i.id === selectedItemId) || null;
             }, [items, selectedItemId]);
 
-            // Defensively calculated local variables for current details rendering (No NaN white screens)
             const detailStats = useMemo(() => {
                 if (!currentItem) return { purchaseVal: 0, marketVal: 0, profitPercent: 0 };
                 const purchaseVal = Number(currentItem.purchase_price) || 0;
@@ -613,16 +621,18 @@
             }, [currentItem]);
 
             const filteredItems = useMemo(() => {
-                return items.filter(item => {
-                    const name = item?.name || "";
-                    const character = item?.character || "";
-                    const notes = item?.notes || "";
-                    const tags = Array.isArray(item?.tags) ? item.tags : [];
+                const safeItems = Array.isArray(items) ? items : [];
+                return safeItems.filter(item => {
+                    if (!item) return false;
+                    const name = item.name || "";
+                    const character = item.character || "";
+                    const notes = item.notes || "";
+                    const tags = Array.isArray(item.tags) ? item.tags : [];
 
                     const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                           character.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                           notes.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                          tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                                          tags.some(t => t && t.toLowerCase().includes(searchQuery.toLowerCase()));
                     
                     const matchesIP = selectedIP === "全部" || item.ip === selectedIP;
                     return matchesSearch && matchesIP;
@@ -635,9 +645,11 @@
                 let realizedGain = 0;
                 let activeCount = 0;
 
-                items.forEach(item => {
-                    const purchase = Number(item?.purchase_price) || 0;
-                    const market = Number(item?.current_market_price) || 0;
+                const safeItems = Array.isArray(items) ? items : [];
+                safeItems.forEach(item => {
+                    if (!item) return;
+                    const purchase = Number(item.purchase_price) || 0;
+                    const market = Number(item.current_market_price) || 0;
                     if (item.status === "sold") {
                         realizedGain += (market - purchase);
                     } else {
@@ -658,41 +670,11 @@
                 };
             }, [items]);
 
-            useEffect(() => {
-                if (activeTab === "add") {
-                    if (editingItem) {
-                        setFormName(editingItem.name || "");
-                        setFormIp(editingItem.ip || "其他");
-                        setFormCharacter(editingItem.character || "通用");
-                        setFormTags(editingItem.tags ? editingItem.tags.join(", ") : "");
-                        setFormStatus(editingItem.status || "in_stock");
-                        setFormImageUrl(editingItem.image_url || "");
-                        setFormPurchasePrice(editingItem.purchase_price || "");
-                        setFormCurrentMarketPrice(editingItem.current_market_price || "");
-                        setFormLocationName(editingItem.location?.name || "");
-                        setFormLocationDescription(editingItem.location?.description || "");
-                        setFormLocationImageUrl(editingItem.location?.image_url || "");
-                        setFormNotes(editingItem.notes || "");
-                    } else {
-                        setFormName("");
-                        setFormIp("");
-                        setFormCharacter("");
-                        setFormTags("");
-                        setFormStatus("in_stock");
-                        setFormImageUrl("");
-                        setFormPurchasePrice("");
-                        setFormCurrentMarketPrice("");
-                        setFormLocationName("");
-                        setFormLocationDescription("");
-                        setFormLocationImageUrl("");
-                        setFormNotes("");
-                    }
-                    setLinkToImport(""); 
-                }
-            }, [activeTab, editingItem]);
-
             const executeDeleteItem = (id) => {
-                setItems(prev => prev.filter(item => item.id !== id));
+                setItems(prev => {
+                    const safePrev = Array.isArray(prev) ? prev : [];
+                    return safePrev.filter(item => item && item.id !== id);
+                });
                 setActiveTab("gallery");
                 setSelectedItemId(null);
                 setDeleteConfirmId(null);
@@ -700,24 +682,28 @@
             };
 
             const updateItemStatus = (id, newStatus) => {
-                setItems(prev => prev.map(item => {
-                    if (item.id === id) {
-                        return { ...item, status: newStatus };
-                    }
-                    return item;
-                }));
+                setItems(prev => {
+                    const safePrev = Array.isArray(prev) ? prev : [];
+                    return safePrev.map(item => {
+                        if (item && item.id === id) {
+                            return { ...item, status: newStatus };
+                        }
+                        return item;
+                    });
+                });
                 const statusLabel = newStatus === "sold" ? "已售出" : "在售中";
-                triggerToast(`已将藏品变变更为【${statusLabel}】`);
+                triggerToast(`已将藏品变更为【${statusLabel}】`);
             };
 
             const handleDeepSeekValuation = async (item) => {
+                if (!item) return;
                 setIsEvaluating(true);
                 setValuationMessage("正在连接 Gemini 全球二级市场行情，拉取最新溢价估值...");
                 
                 try {
                     const systemPrompt = "You are a professional collectible valuer. Given the item details, return strictly JSON format: {\"estimated_price\": 120, \"reason\": \"Chinese explanation\"}";
                     const payload = {
-                        contents: [{ parts: [{ text: `Current market price for: IP=${item.ip}, Name=${item.name}, Character=${item.character}` }] }],
+                        contents: [{ parts: [{ text: `Current market price for: IP=${item.ip || ""}, Name=${item.name || ""}, Character=${item.character || ""}` }] }],
                         tools: [{ "google_search": {} }],
                         systemInstruction: { parts: [{ text: systemPrompt }] },
                         generationConfig: { responseMimeType: "application/json" }
@@ -738,24 +724,27 @@
                     const text = res.candidates?.[0]?.content?.parts?.[0]?.text;
                     const parsed = JSON.parse(text);
 
-                    const newPrice = Number(parsed.estimated_price);
+                    const newPrice = Number(parsed.estimated_price) || item.current_market_price;
                     const updatedHistory = [...(Array.isArray(item.price_history) ? item.price_history : []), {
                         date: new Date().toISOString().split('T')[0],
                         price: newPrice,
                         source: "AI智能估价"
                     }];
 
-                    setItems(prev => prev.map(i => i.id === item.id ? {
-                        ...i,
-                        current_market_price: newPrice,
-                        price_history: updatedHistory,
-                        notes: i.notes + `\n[AI估值分析]: ${parsed.reason}`
-                    } : i));
+                    setItems(prev => {
+                        const safePrev = Array.isArray(prev) ? prev : [];
+                        return safePrev.map(i => i && i.id === item.id ? {
+                            ...i,
+                            current_market_price: newPrice,
+                            price_history: updatedHistory,
+                            notes: (i.notes || "") + `\n[AI估值分析]: ${parsed.reason || ""}`
+                        } : i);
+                    });
 
                     triggerToast(`最新行情价为：¥${newPrice}`);
-                } catch {
-                    const fluctuation = (Math.random() * 0.3 - 0.1) * item.current_market_price;
-                    const newEstimate = Math.max(item.purchase_price * 0.8, Math.round(item.current_market_price + fluctuation));
+                } catch (e) {
+                    const fluctuation = (Math.random() * 0.3 - 0.1) * (item.current_market_price || 100);
+                    const newEstimate = Math.max((item.purchase_price || 0) * 0.8, Math.round((item.current_market_price || 100) + fluctuation));
                     
                     const updatedPriceHistory = [...(Array.isArray(item.price_history) ? item.price_history : []), {
                         date: new Date().toISOString().split('T')[0],
@@ -763,11 +752,14 @@
                         source: "智能估价 (模拟)"
                     }];
 
-                    setItems(prev => prev.map(i => i.id === item.id ? {
-                        ...i,
-                        current_market_price: newEstimate,
-                        price_history: updatedPriceHistory
-                    } : i));
+                    setItems(prev => {
+                        const safePrev = Array.isArray(prev) ? prev : [];
+                        return safePrev.map(i => i && i.id === item.id ? {
+                            ...i,
+                            current_market_price: newEstimate,
+                            price_history: updatedPriceHistory
+                        } : i);
+                    });
                     triggerToast(`最新行情估值结果为：¥${newEstimate}`);
                 } finally {
                     setIsEvaluating(false);
@@ -816,7 +808,7 @@
 
                     {/* GALLERY TAB */}
                     {activeTab === "gallery" && (
-                        <div className="flex-1 flex flex-col">
+                        <div className="flex-1 flex flex-col animate-fadeIn">
                             {/* Dashboard header card */}
                             <div className="px-6 py-4 flex justify-between items-end">
                                 <div>
@@ -908,7 +900,7 @@
                                 </div>
                             </div>
 
-                            {/* Grid Layout */}
+                            {}
                             <div className="px-6 py-4 flex-1">
                                 {filteredItems.length === 0 ? (
                                     <div className="bg-white border border-dashed border-[#e5e5e0] rounded-3xl p-8 text-center text-[#8c8c82]">
@@ -923,8 +915,9 @@
                                 ) : (
                                     <div className="grid grid-cols-2 gap-4">
                                         {filteredItems.map(item => {
-                                            const purchase = Number(item?.purchase_price) || 0;
-                                            const market = Number(item?.current_market_price) || 0;
+                                            if (!item) return null;
+                                            const purchase = Number(item.purchase_price) || 0;
+                                            const market = Number(item.current_market_price) || 0;
                                             const profitRate = purchase > 0 ? ((market - purchase) / purchase) * 100 : 0;
                                             const isSold = item.status === "sold";
                                             const isSelling = item.status === "selling";
@@ -987,9 +980,9 @@
                         </div>
                     )}
 
-                    {/* DETAIL TAB */}
+                    {}
                     {activeTab === "detail" && currentItem && (
-                        <div className="flex-1 bg-white">
+                        <div className="flex-1 bg-white animate-fadeIn">
                             <div className="relative w-full aspect-[4/5] bg-neutral-100">
                                 {currentItem.image_url ? (
                                     <img 
@@ -1176,9 +1169,9 @@
                         </div>
                     )}
 
-                    {/* ADD/EDIT FORM TAB */}
+                    {}
                     {activeTab === "add" && (
-                        <div className="p-6 bg-white flex-1 space-y-6">
+                        <div className="p-6 bg-white flex-1 space-y-6 animate-fadeIn">
                             <div className="flex justify-between items-center">
                                 <h2 className="text-xl font-bold serif-font text-[#20252c]">
                                     {editingItem ? "调整馆藏档案" : "录入珍藏佳作"}
@@ -1282,10 +1275,16 @@
                                 };
 
                                 if (editingItem) {
-                                    setItems(prev => prev.map(i => i.id === editingItem.id ? updatedItem : i));
+                                    setItems(prev => {
+                                        const safePrev = Array.isArray(prev) ? prev : [];
+                                        return safePrev.map(i => i && i.id === editingItem.id ? updatedItem : i);
+                                    });
                                     triggerToast("档案已成功保存微调。");
                                 } else {
-                                    setItems(prev => [updatedItem, ...prev]);
+                                    setItems(prev => {
+                                        const safePrev = Array.isArray(prev) ? prev : [];
+                                        return [updatedItem, ...safePrev];
+                                    });
                                     triggerToast("新藏品已完美收录入库！");
                                 }
 
@@ -1296,28 +1295,24 @@
                                 <div className="space-y-1.5">
                                     <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">藏品实体照片 (选填)</label>
                                     <div className="flex gap-3 items-center">
-                                        {/* Large, explicit clickable zone for all mobile Safari/Wechat browsers with high z-index */}
-                                        <div className="relative w-20 h-20 bg-neutral-100 rounded-2xl border border-dashed border-[#d5d4cd] flex flex-col items-center justify-center cursor-pointer hover:bg-neutral-50 active:scale-95 transition-all overflow-hidden">
+                                        <div className="w-16 h-16 rounded-xl border border-dashed border-[#e5e5e0] overflow-hidden bg-neutral-50 flex items-center justify-center relative cursor-pointer">
                                             <input 
                                                 type="file" 
                                                 accept="image/*" 
                                                 onChange={(e) => handlePhotoInputChange(e, setFormImageUrl)}
-                                                className="absolute inset-0 opacity-0 z-20 cursor-pointer"
+                                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
                                             />
                                             {formImageUrl ? (
                                                 <img 
                                                     src={formImageUrl}
-                                                    className="w-full h-full object-cover relative z-10" 
+                                                    className="w-full h-full object-cover pointer-events-none" 
                                                 />
                                             ) : (
-                                                <div className="text-center p-2 relative z-10 pointer-events-none">
-                                                    <span className="text-lg text-neutral-400 block font-bold">+</span>
-                                                    <span className="text-[9px] text-neutral-400">拍照/上传</span>
-                                                </div>
+                                                <span className="text-xl text-neutral-400">+</span>
                                             )}
                                         </div>
                                         <div className="text-[10px] text-neutral-400 leading-relaxed flex-1">
-                                            支持手机直接拍照或相册直传。<b>已开启零内存画布压缩与无损坏兜底保护</b>，照片再大也绝不裂图。如不上传则显示高雅画廊兜底板。
+                                            支持手机直接拍照或相册直传。<b>已开启高保真无损压缩机制</b>，照片上传也绝不裂图。如不上传则默认极简画展框。
                                         </div>
                                     </div>
                                 </div>
@@ -1425,25 +1420,25 @@
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">位置定位实拍</label>
+                                            <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">位置定位实拍照片</label>
                                             <div className="flex gap-2 items-center">
-                                                <div className="relative w-10 h-10 bg-neutral-100 rounded-lg border border-dashed border-[#d5d4cd] flex flex-col items-center justify-center cursor-pointer hover:bg-neutral-50 transition-all overflow-hidden">
+                                                <div className="w-8 h-8 rounded-lg border border-dashed border-[#e5e5e0] overflow-hidden bg-neutral-50 flex items-center justify-center relative">
                                                     <input 
                                                         type="file" 
                                                         accept="image/*" 
                                                         onChange={(e) => handlePhotoInputChange(e, setFormLocationImageUrl)}
-                                                        className="absolute inset-0 opacity-0 z-20 cursor-pointer"
+                                                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
                                                     />
                                                     {formLocationImageUrl ? (
                                                         <img 
                                                             src={formLocationImageUrl}
-                                                            className="w-full h-full object-cover relative z-10" 
+                                                            className="w-full h-full object-cover pointer-events-none" 
                                                         />
                                                     ) : (
-                                                        <span className="text-xs text-neutral-400 relative z-10 pointer-events-none">+</span>
+                                                        <span className="text-neutral-400">+</span>
                                                     )}
                                                 </div>
-                                                <span className="text-[9px] text-neutral-400">拍摄位置</span>
+                                                <span className="text-[9px] text-neutral-400">拍摄实存位置</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1460,7 +1455,7 @@
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">藏品品品相及赏析备注 (选填)</label>
+                                    <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">藏品品相及赏析备注 (选填)</label>
                                     <textarea 
                                         value={formNotes}
                                         onChange={(e) => setFormNotes(e.target.value)}
@@ -1472,7 +1467,7 @@
 
                                 <button 
                                     type="submit"
-                                    className="w-full py-3 bg-[#20252c] text-white text-xs font-semibold rounded-xl hover:shadow-md transition mt-4"
+                                    className="w-full py-3 bg-[#20252c] text-white text-xs font-semibold rounded-xl hover:shadow-md transition mt-4 animate-fadeIn"
                                 >
                                     {editingItem ? "确认修改" : "确认录入档案"}
                                 </button>
@@ -1480,9 +1475,9 @@
                         </div>
                     )}
 
-                    {/* SETTINGS TAB */}
+                    {}
                     {activeTab === "settings" && (
-                        <div className="p-6 bg-white flex-1 space-y-6">
+                        <div className="p-6 bg-white flex-1 space-y-6 animate-fadeIn">
                             <div className="flex justify-between items-center">
                                 <h2 className="text-xl font-bold serif-font text-[#20252c]">系统与智能配置</h2>
                                 <button onClick={() => setActiveTab("gallery")} className="text-xs text-[#8c8c82]">返回</button>
@@ -1495,7 +1490,7 @@
                                         <span className="text-sm font-semibold text-[#20252c]">DeepSeek / Gemini API Key</span>
                                     </div>
                                     <p className="text-xs text-[#8c8c82] leading-relaxed">
-                                        智能估价服务同时向 Gemini 行情大模型兼容。在此输入您个人的 API 密钥。
+                                        智能估价与元数据检索服务通过大模型保障。在此输入您的个人 Gemini API 密钥以唤醒它。
                                     </p>
                                     <div className="space-y-1.5">
                                         <input 
@@ -1515,7 +1510,10 @@
                                             <div key={ip} className="inline-flex items-center gap-1 bg-neutral-100 text-[#20252c] text-xs px-3 py-1.5 rounded-full">
                                                 <span>{ip}</span>
                                                 <button 
-                                                    onClick={() => setCustomIPs(prev => prev.filter(p => p !== ip))}
+                                                    onClick={() => setCustomIPs(prev => {
+                                                        const safePrev = Array.isArray(prev) ? prev : [];
+                                                        return safePrev.filter(p => p !== ip);
+                                                    })}
                                                     className="text-neutral-400 hover:text-rose-600 text-[10px] font-bold"
                                                 >
                                                     ×
@@ -1577,7 +1575,7 @@
                         </div>
                     )}
 
-                    {/* FIXED BOTTOM NAV BAR */}
+                    {}
                     <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-md border-t border-neutral-200/50 flex justify-around items-center py-2.5 px-6 z-40 shadow-lg">
                         <button 
                             onClick={() => { setActiveTab("gallery"); setSelectedItemId(null); }}
@@ -1607,12 +1605,30 @@
             );
         }
 
-        const root = ReactDOM.createRoot(document.getElementById("app"));
-        root.render(
+        const mountNode = document.getElementById("app");
+        const renderedApp = (
             <ErrorBoundary>
                 <App />
             </ErrorBoundary>
         );
+
+        try {
+            // New React 18 createRoot render
+            if (typeof ReactDOM.createRoot === "function") {
+                const root = ReactDOM.createRoot(mountNode);
+                root.render(renderedApp);
+            } else {
+                // Legacy React 17 fallback for older Mobile Webkit engines
+                ReactDOM.render(renderedApp, mountNode);
+            }
+        } catch (e) {
+            console.warn("React 18 mounting failed, trying standard legacy mounting method:", e);
+            try {
+                ReactDOM.render(renderedApp, mountNode);
+            } catch (err) {
+                console.error("Critical rendering pipeline collapsed:", err);
+            }
+        }
     </script>
 </body>
 </html>
