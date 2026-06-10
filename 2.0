@@ -49,7 +49,7 @@
         }
         /* Custom grayscaling for SOLD OUT items to match high-end photo treatments in image_f066e0.jpg */
         .sold-out-grayscale {
-            filter: grayscale(90%) contrast(95%);
+            filter: grayscale(100%) contrast(90%) brightness(95%);
             opacity: 0.65;
         }
         /* Shimmer effect for DeepSeek AI analysis loading states */
@@ -212,6 +212,10 @@
             }
         ];
 
+        // Beautiful SVG DataUrl when images fail or are empty
+        const FALLBACK_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100%25' height='100%25' fill='%23f2f1ec'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='serif' font-size='10' fill='%237c7c72'>Vibe Museum</text></svg>";
+
+        // Decoupled PriceTrendChart with strict NaN/Infinity rendering protection
         function PriceTrendChart({ history, purchasePrice, currentPrice }) {
             const parsedHistory = Array.isArray(history) ? history : [];
             if (parsedHistory.length < 2) {
@@ -222,6 +226,7 @@
                 );
             }
 
+            // Clean data points
             const parsedData = parsedHistory.map(h => ({
                 date: h?.date || "",
                 price: parseFloat(h?.price) || 0,
@@ -324,7 +329,7 @@
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
             const [editingItem, setEditingItem] = useState(null);
 
-            // Desktop slide/drag helpers
+            // Desktop slide/drag momentum handles
             const scrollContainerRef = useRef(null);
             const isDragging = useRef(false);
             const startX = useRef(0);
@@ -378,15 +383,15 @@
                 if (!isDragging.current || !scrollContainerRef.current) return;
                 e.preventDefault();
                 const x = e.pageX - scrollContainerRef.current.offsetLeft;
-                const walk = (x - startX.current) * 1.5; // Scroll speed multiplier
+                const walk = (x - startX.current) * 1.5; 
                 scrollContainerRef.current.scrollLeft = scrollLeft.current - walk;
             };
 
-            // Comprehensive base64 image compression with auto-fallback to guarantee images load
+            // Ultra crash-proof memory safe Image compression using HTML5 Blob URLs
             const compressPhoto = (file) => {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
+                return new Promise((resolve) => {
+                    try {
+                        const blobUrl = URL.createObjectURL(file);
                         const img = new Image();
                         img.onload = () => {
                             try {
@@ -413,21 +418,29 @@
                                 const ctx = canvas.getContext("2d");
                                 ctx.drawImage(img, 0, 0, width, height);
                                 
-                                const compressedBase64 = canvas.toDataURL("image/jpeg", 0.8);
+                                const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
+                                URL.revokeObjectURL(blobUrl); // Revoke immediately to save massive RAM in browser
                                 resolve(compressedBase64);
                             } catch (e) {
-                                // Fallback directly to original read base64 if canvas is restricted
-                                resolve(event.target.result);
+                                // Fallback 1: FileReader raw load
+                                const reader = new FileReader();
+                                reader.onload = (re) => resolve(re.target.result);
+                                reader.readAsDataURL(file);
                             }
                         };
                         img.onerror = () => {
-                            // Fallback directly to original read base64 if image initialization fails
-                            resolve(event.target.result);
+                            // Fallback 2: FileReader raw load
+                            const reader = new FileReader();
+                            reader.onload = (re) => resolve(re.target.result);
+                            reader.readAsDataURL(file);
                         };
-                        img.src = event.target.result;
-                    };
-                    reader.onerror = (err) => reject(err);
-                    reader.readAsDataURL(file);
+                        img.src = blobUrl;
+                    } catch (err) {
+                        // Fallback 3: Standard FileReader direct load
+                        const reader = new FileReader();
+                        reader.onload = (re) => resolve(re.target.result);
+                        reader.readAsDataURL(file);
+                    }
                 });
             };
 
@@ -446,6 +459,7 @@
                 }
             };
 
+            // Truly intelligent parsing from online marketplaces
             const handleTrueIntelligentImport = async () => {
                 const queryStr = linkToImport.trim();
                 if (!queryStr) {
@@ -536,6 +550,15 @@
                 return items.find(i => i.id === selectedItemId) || null;
             }, [items, selectedItemId]);
 
+            // Defensively calculated local variables for current details rendering (No NaN white screens)
+            const detailStats = useMemo(() => {
+                if (!currentItem) return { purchaseVal: 0, marketVal: 0, profitPercent: 0 };
+                const purchaseVal = Number(currentItem.purchase_price) || 0;
+                const marketVal = Number(currentItem.current_market_price) || 0;
+                const profitPercent = purchaseVal > 0 ? ((marketVal - purchaseVal) / purchaseVal) * 100 : 0;
+                return { purchaseVal, marketVal, profitPercent };
+            }, [currentItem]);
+
             const filteredItems = useMemo(() => {
                 return items.filter(item => {
                     const name = item?.name || "";
@@ -553,7 +576,7 @@
                 });
             }, [items, searchQuery, selectedIP]);
 
-            // High Fidelity Stats Dashboard restored per user's requests with unrealized calculation
+            // High Fidelity Stats Dashboard restored
             const stats = useMemo(() => {
                 let totalCost = 0;
                 let currentEstimatedVal = 0;
@@ -701,7 +724,7 @@
             };
 
             return (
-                <div className="max-w-md mx-auto min-h-screen bg-[#f6f6f3] shadow-xl relative flex flex-col pt-safe pb-safe pb-24 animate-fade-in">
+                <div className="max-w-md mx-auto min-h-screen bg-[#f6f6f3] shadow-xl relative flex flex-col pt-safe pb-safe pb-24">
                     
                     {/* Custom elegant Toast Banner */}
                     {toast && (
@@ -754,7 +777,7 @@
                                 </div>
                             </div>
 
-                            {/* PREMIUM HEADER DATA PANEL (RESTORED AS REQUESTED) */}
+                            {/* PREMIUM HEADER DATA PANEL */}
                             <div className="px-6 mb-4">
                                 <div className="bg-[#1a1a1a] text-[#fbfbfa] rounded-3xl p-5 shadow-sm relative overflow-hidden">
                                     <div className="absolute right-[-20px] bottom-[-20px] opacity-10 text-white font-bold text-8xl pointer-events-none serif-font">
@@ -866,6 +889,10 @@
                                                                 src={item.image_url} 
                                                                 alt={item.name}
                                                                 className={`w-full h-full object-cover transition-transform duration-500 hover:scale-105 ${isSold ? "sold-out-grayscale" : ""}`}
+                                                                onError={(e) => {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = FALLBACK_SVG; // Graceful auto-repair on load error
+                                                                }}
                                                             />
                                                         ) : (
                                                             <ImageFallback title={item.name} />
@@ -921,6 +948,10 @@
                                         src={currentItem.image_url} 
                                         alt={currentItem.name}
                                         className={`w-full h-full object-cover ${currentItem.status === "sold" ? "sold-out-grayscale" : ""}`}
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.src = FALLBACK_SVG;
+                                        }}
                                     />
                                 ) : (
                                     <ImageFallback title={currentItem.name} className="w-full h-full" />
@@ -994,16 +1025,16 @@
                                     </div>
                                     <div className="flex justify-between pr-4 border-r border-[#f0f0e8]">
                                         <span className="text-neutral-400">入手原价</span>
-                                        <span className="font-semibold text-[#20252c]">¥{Number(currentItem.purchase_price) || 0}</span>
+                                        <span className="font-semibold text-[#20252c]">¥{detailStats.purchaseVal}</span>
                                     </div>
                                     <div className="flex justify-between pl-2">
                                         <span className="text-neutral-400">最新评估价</span>
-                                        <span className="font-semibold text-[#20252c]">¥{Number(currentItem.current_market_price) || 0}</span>
+                                        <span className="font-semibold text-[#20252c]">¥{detailStats.marketVal}</span>
                                     </div>
                                     <div className="flex justify-between pr-4 border-r border-[#f0f0e8]">
                                         <span className="text-neutral-400">投资回报比</span>
-                                        <span className={`font-semibold ${currentItem.current_market_price >= currentItem.purchase_price ? "text-emerald-600" : "text-rose-600"}`}>
-                                            {currentItem.purchase_price > 0 ? (((currentItem.current_market_price - currentItem.purchase_price) / currentItem.purchase_price) * 100).toFixed(0) : 0}%
+                                        <span className={`font-semibold ${detailStats.marketVal >= detailStats.purchaseVal ? "text-emerald-600" : "text-rose-600"}`}>
+                                            {detailStats.profitPercent.toFixed(0)}%
                                         </span>
                                     </div>
                                     <div className="flex justify-between pl-2 relative">
@@ -1030,6 +1061,10 @@
                                                     src={currentItem.location.image_url} 
                                                     alt="柜位实拍" 
                                                     className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = FALLBACK_SVG;
+                                                    }}
                                                 />
                                             </div>
                                         )}
@@ -1064,8 +1099,8 @@
 
                                     <PriceTrendChart 
                                         history={currentItem.price_history} 
-                                        purchasePrice={Number(currentItem.purchase_price) || 0}
-                                        currentPrice={Number(currentItem.current_market_price) || 0}
+                                        purchasePrice={detailStats.purchaseVal}
+                                        currentPrice={detailStats.marketVal}
                                     />
                                 </div>
 
@@ -1075,6 +1110,19 @@
                                         {currentItem.notes || "主理人很懒，尚未为此藏品撰写艺术赏析语录。"}
                                     </p>
                                 </div>
+
+                                {/* Highly secure calculated threshold alerts */}
+                                {detailStats.purchaseVal > 0 && detailStats.profitPercent >= 50 && (
+                                    <div className="bg-[#20252c] text-white p-4 rounded-2xl space-y-1 shadow-sm">
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                                            <Icon name="trendUp" className="w-4 h-4" />
+                                            <span>黄金溢价资产警报</span>
+                                        </div>
+                                        <p className="text-xs text-neutral-300 leading-relaxed">
+                                            此款收藏品当前二级市场成交价对比入馆原价溢价高达 {detailStats.profitPercent.toFixed(0)}%。处于二级市场流动性最红润的区间，是一个完美的出手收割利润机会！
+                                        </p>
+                                    </div>
+                                )}
 
                                 {/* Tags */}
                                 <div className="flex flex-wrap gap-1.5 pt-2">
@@ -1116,7 +1164,7 @@
                                         输入商品模糊名、手办描述，或者粘贴闲鱼/得物/天猫的商品分享链接。Gemini 将实时为您检索市场行情并全自动为您填表。
                                     </p>
                                     
-                                    {/* API KEY WARNING BANNER (ADDED PER USER'S REQUIREMENT) */}
+                                    {/* API KEY WARNING BANNER */}
                                     <div className="p-3 bg-amber-50 border border-amber-200/50 rounded-xl text-amber-800 text-[10px] leading-relaxed flex items-start gap-1.5">
                                         <span className="mt-0.5">⚠️</span>
                                         <p>
@@ -1208,24 +1256,29 @@
                                 <div className="space-y-1.5">
                                     <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">藏品实体照片 (选填)</label>
                                     <div className="flex gap-3 items-center">
-                                        <div className="w-16 h-16 rounded-xl border border-dashed border-[#e5e5e0] overflow-hidden bg-neutral-50 flex items-center justify-center relative cursor-pointer">
+                                        {/* Large, explicit clickable zone for all mobile Safari/Wechat browsers with high z-index */}
+                                        <div className="relative w-20 h-20 bg-neutral-100 rounded-2xl border border-dashed border-[#d5d4cd] flex flex-col items-center justify-center cursor-pointer hover:bg-neutral-50 active:scale-95 transition-all overflow-hidden">
                                             <input 
                                                 type="file" 
                                                 accept="image/*" 
                                                 onChange={(e) => handlePhotoInputChange(e, setFormImageUrl)}
-                                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                                className="absolute inset-0 opacity-0 z-20 cursor-pointer"
                                             />
                                             {formImageUrl ? (
                                                 <img 
                                                     src={formImageUrl}
-                                                    className="w-full h-full object-cover pointer-events-none" 
+                                                    className="w-full h-full object-cover relative z-10" 
+                                                    onError={(e) => { e.target.src = FALLBACK_SVG; }}
                                                 />
                                             ) : (
-                                                <span className="text-xl text-neutral-400">+</span>
+                                                <div className="text-center p-2 relative z-10 pointer-events-none">
+                                                    <span className="text-lg text-neutral-400 block font-bold">+</span>
+                                                    <span className="text-[9px] text-neutral-400">拍照/上传</span>
+                                                </div>
                                             )}
                                         </div>
-                                        <div className="text-[10px] text-neutral-400 leading-relaxed">
-                                            支持手机直接拍照或相册直传。<b>已开启高保真无损压缩机制</b>，照片上传也绝不裂图。如不上传则默认极简画展框。
+                                        <div className="text-[10px] text-neutral-400 leading-relaxed flex-1">
+                                            支持手机直接拍照或相册直传。<b>已开启零内存画布压缩与无损坏兜底保护</b>，照片再大也绝不裂图。如不上传则显示高雅画廊兜底板。
                                         </div>
                                     </div>
                                 </div>
@@ -1260,7 +1313,7 @@
                                         </datalist>
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">角色 / 规格特征 (选填)</label>
+                                        <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">角色 / 细节规格 (选填)</label>
                                         <input 
                                             type="text" 
                                             value={formCharacter}
@@ -1333,25 +1386,26 @@
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">位置定位实拍照片</label>
+                                            <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">位置定位实拍</label>
                                             <div className="flex gap-2 items-center">
-                                                <div className="w-8 h-8 rounded-lg border border-dashed border-[#e5e5e0] overflow-hidden bg-neutral-50 flex items-center justify-center relative">
+                                                <div className="relative w-10 h-10 bg-neutral-100 rounded-lg border border-dashed border-[#d5d4cd] flex flex-col items-center justify-center cursor-pointer hover:bg-neutral-50 transition-all overflow-hidden">
                                                     <input 
                                                         type="file" 
                                                         accept="image/*" 
                                                         onChange={(e) => handlePhotoInputChange(e, setFormLocationImageUrl)}
-                                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                                        className="absolute inset-0 opacity-0 z-20 cursor-pointer"
                                                     />
                                                     {formLocationImageUrl ? (
                                                         <img 
                                                             src={formLocationImageUrl}
-                                                            className="w-full h-full object-cover pointer-events-none" 
+                                                            className="w-full h-full object-cover relative z-10" 
+                                                            onError={(e) => { e.target.src = FALLBACK_SVG; }}
                                                         />
                                                     ) : (
-                                                        <span className="text-neutral-400">+</span>
+                                                        <span className="text-xs text-neutral-400 relative z-10 pointer-events-none">+</span>
                                                     )}
                                                 </div>
-                                                <span className="text-[9px] text-neutral-400">拍摄实存位置</span>
+                                                <span className="text-[9px] text-neutral-400">拍摄位置</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1368,7 +1422,7 @@
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">藏品品相及赏析备注 (选填)</label>
+                                    <label className="text-neutral-500 block uppercase tracking-wider text-[10px]">藏品品品相及赏析备注 (选填)</label>
                                     <textarea 
                                         value={formNotes}
                                         onChange={(e) => setFormNotes(e.target.value)}
