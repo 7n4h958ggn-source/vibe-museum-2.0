@@ -215,7 +215,57 @@
         // Beautiful SVG DataUrl when images fail or are empty
         const FALLBACK_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100%25' height='100%25' fill='%23f2f1ec'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='serif' font-size='10' fill='%237c7c72'>Vibe Museum</text></svg>";
 
-        // Decoupled PriceTrendChart with strict NaN/Infinity rendering protection
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null, errorInfo: null };
+            }
+
+            componentDidCatch(error, errorInfo) {
+                this.setState({
+                    hasError: true,
+                    error: error,
+                    errorInfo: errorInfo
+                });
+                console.error("ErrorBoundary caught rendering failure:", error, errorInfo);
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="p-6 max-w-md mx-auto my-12 bg-white rounded-3xl border border-rose-200 shadow-2xl space-y-4 text-left">
+                            <div className="text-rose-600 font-bold text-lg flex items-center gap-2">
+                                <span className="text-xl">⚠️</span>
+                                <span className="serif-font">系统加载发生意外</span>
+                            </div>
+                            <p className="text-xs text-[#20252c] font-medium leading-relaxed">
+                                抱歉！由于您之前在浏览器中缓存了不兼容的历史馆藏数据，应用未能成功渲染。我们已经帮您拦截了白屏崩溃。请通过点击下方按钮清空这些旧数据：
+                            </p>
+                            <div className="p-3.5 bg-neutral-100 rounded-2xl text-neutral-800 font-mono text-[10px] overflow-auto max-h-52 border border-neutral-200">
+                                {this.state.error && this.state.error.toString()}
+                                <br />
+                                {this.state.errorInfo && this.state.errorInfo.componentStack}
+                            </div>
+                            <button
+                                onClick={() => {
+                                    try {
+                                        localStorage.clear();
+                                        window.location.reload();
+                                    } catch(e) {
+                                        window.location.reload();
+                                    }
+                                }}
+                                className="w-full py-3 bg-[#20252c] text-[#fbfbfa] font-bold text-xs rounded-xl shadow-md transition active:scale-95 hover:bg-neutral-800"
+                            >
+                                ⚡ 清空缓存并重新加载 Vibe 馆
+                            </button>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
         function PriceTrendChart({ history, purchasePrice, currentPrice }) {
             const parsedHistory = Array.isArray(history) ? history : [];
             if (parsedHistory.length < 2) {
@@ -387,7 +437,6 @@
                 scrollContainerRef.current.scrollLeft = scrollLeft.current - walk;
             };
 
-            // Ultra crash-proof memory safe Image compression using HTML5 Blob URLs
             const compressPhoto = (file) => {
                 return new Promise((resolve) => {
                     try {
@@ -459,7 +508,6 @@
                 }
             };
 
-            // Truly intelligent parsing from online marketplaces
             const handleTrueIntelligentImport = async () => {
                 const queryStr = linkToImport.trim();
                 if (!queryStr) {
@@ -496,7 +544,7 @@
                         }
                     };
 
-                    const apiKey = ""; // System dynamically feeds token at runtime
+                    const apiKey = deepSeekKey || ""; // Fallbacks securely to state
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
                     const response = await fetch(apiUrl, {
@@ -538,6 +586,11 @@
                 }
             };
 
+            const saveApiKey = (val) => {
+                setDeepSeekKey(val);
+                safeSetLocalStorage("vibe_deepseek_key", val);
+            };
+
             useEffect(() => {
                 safeSetLocalStorage("vibe_museum_items", items);
             }, [items]);
@@ -576,7 +629,6 @@
                 });
             }, [items, searchQuery, selectedIP]);
 
-            // High Fidelity Stats Dashboard restored
             const stats = useMemo(() => {
                 let totalCost = 0;
                 let currentEstimatedVal = 0;
@@ -655,7 +707,7 @@
                     return item;
                 }));
                 const statusLabel = newStatus === "sold" ? "已售出" : "在售中";
-                triggerToast(`已将藏品变更为【${statusLabel}】`);
+                triggerToast(`已将藏品变变更为【${statusLabel}】`);
             };
 
             const handleDeepSeekValuation = async (item) => {
@@ -671,7 +723,7 @@
                         generationConfig: { responseMimeType: "application/json" }
                     };
 
-                    const apiKey = "";
+                    const apiKey = deepSeekKey || "";
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
                     const response = await fetch(apiUrl, {
@@ -889,10 +941,6 @@
                                                                 src={item.image_url} 
                                                                 alt={item.name}
                                                                 className={`w-full h-full object-cover transition-transform duration-500 hover:scale-105 ${isSold ? "sold-out-grayscale" : ""}`}
-                                                                onError={(e) => {
-                                                                    e.target.onerror = null;
-                                                                    e.target.src = FALLBACK_SVG; // Graceful auto-repair on load error
-                                                                }}
                                                             />
                                                         ) : (
                                                             <ImageFallback title={item.name} />
@@ -948,10 +996,6 @@
                                         src={currentItem.image_url} 
                                         alt={currentItem.name}
                                         className={`w-full h-full object-cover ${currentItem.status === "sold" ? "sold-out-grayscale" : ""}`}
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = FALLBACK_SVG;
-                                        }}
                                     />
                                 ) : (
                                     <ImageFallback title={currentItem.name} className="w-full h-full" />
@@ -1061,10 +1105,6 @@
                                                     src={currentItem.location.image_url} 
                                                     alt="柜位实拍" 
                                                     className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        e.target.onerror = null;
-                                                        e.target.src = FALLBACK_SVG;
-                                                    }}
                                                 />
                                             </div>
                                         )}
@@ -1268,7 +1308,6 @@
                                                 <img 
                                                     src={formImageUrl}
                                                     className="w-full h-full object-cover relative z-10" 
-                                                    onError={(e) => { e.target.src = FALLBACK_SVG; }}
                                                 />
                                             ) : (
                                                 <div className="text-center p-2 relative z-10 pointer-events-none">
@@ -1399,7 +1438,6 @@
                                                         <img 
                                                             src={formLocationImageUrl}
                                                             className="w-full h-full object-cover relative z-10" 
-                                                            onError={(e) => { e.target.src = FALLBACK_SVG; }}
                                                         />
                                                     ) : (
                                                         <span className="text-xs text-neutral-400 relative z-10 pointer-events-none">+</span>
@@ -1570,7 +1608,11 @@
         }
 
         const root = ReactDOM.createRoot(document.getElementById("app"));
-        root.render(<App />);
+        root.render(
+            <ErrorBoundary>
+                <App />
+            </ErrorBoundary>
+        );
     </script>
 </body>
 </html>
